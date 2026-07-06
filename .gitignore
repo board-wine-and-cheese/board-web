@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Local Netlify folder
+.netlify/
+
+# macOS metadata
+.DS_Store
+__MACOSX/
+
+# npm logs
+npm-debug.log*
+
+# Editor settings (optional)
+.vscode/
