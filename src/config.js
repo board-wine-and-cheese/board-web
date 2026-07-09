@@ -1,4 +1,5 @@
 export const TABLES = {
+  Home: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=301709255&single=true&output=csv',
   Hero: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=96924857&single=true&output=csv',
   Venue: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=680145671&single=true&output=csv',
   Menu: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=253177342&single=true&output=csv',

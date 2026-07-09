@@ -432,20 +432,21 @@ export default function App() {
   const [externalMenuItems, setExternalMenuItems] = useState([]);
   const [externalFullMenuRows, setExternalFullMenuRows] = useState([]);
   const [externalHeroRows, setExternalHeroRows] = useState([]);
+  const [externalHomeRows, setExternalHomeRows] = useState([]);
   const [reviewScrollPaused, setReviewScrollPaused] = useState(false);
   const [expandedMenuCategories, setExpandedMenuCategories] = useState({});
   const [activeMenuItem, setActiveMenuItem] = useState(null);
   const reviewSliderRef = useRef(null);
 
 
-  const HERO_VIDEO_URL = '/videos/board-hero.mp4';
+  const HERO_VIDEO_URL = 'https://res.cloudinary.com/boardwineandcheese/video/upload/v1783267164/hero/board-hero.mp4';
   const HERO_POSTER_URL = '/images/wine-bottle.jpg';
   const activeHero = externalHeroRows[0] || {};
   const heroTitle = activeHero.title || 'Board Wine & Cheese in Kittery, Maine';
   const heroSubtitle = activeHero.subtitle || activeHero.subTitle || 'A relaxed neighborhood wine bar for thoughtfully selected wines, craft beer, artisan cheeses, charcuterie boards, wine flights, seasonal dishes, private events, catering, and live music near Portsmouth, New Hampshire.';
   const heroMediaUrl = activeHero.mediaURL || activeHero.cloudinaryURL || '';
   const [heroVideoFailed, setHeroVideoFailed] = useState(false);
-  const heroVideoUrl = cloudinaryVideoUrl(heroMediaUrl || HERO_VIDEO_URL);
+  const heroVideoUrl = cloudinaryVideoUrl(HERO_VIDEO_URL);
   const heroPosterUrl = HERO_POSTER_URL;
 
   const [venueSlides, setVenueSlides] = useState([
@@ -683,11 +684,79 @@ export default function App() {
     [calendarEvents]
   );
 
-  const happyHourImages = [
-    { src: LOCAL_IMAGES.happyHourWine, alt: 'Wine glasses' },
-    { src: LOCAL_IMAGES.happyHourBoard, alt: 'Charcuterie board' },
-    { src: LOCAL_IMAGES.happyHourBeer, alt: 'Craft beer' },
-  ];
+  const homeRowsByCategory = useMemo(() => {
+    const rows = {};
+
+    externalHomeRows.forEach((row) => {
+      const category = String(row.category || '').trim();
+      if (category && !rows[category]) {
+        rows[category] = row;
+      }
+    });
+
+    return rows;
+  }, [externalHomeRows]);
+
+  const getHomeSection = (category, fallback) => {
+    const row = homeRowsByCategory[category] || {};
+    const images = [row.mediaURL, row.mediaURL2, row.mediaURL3]
+      .map((url) => String(url || '').trim())
+      .filter(Boolean);
+
+    return {
+      eyebrow: fallback.eyebrow,
+      title: row.title || fallback.title,
+      subtitle: row.subtitle || row.subTitle || fallback.subtitle,
+      images: images.length ? images : fallback.images,
+    };
+  };
+
+  const happyHourSection = getHomeSection('HappyHour', {
+    eyebrow: 'Happy Hour',
+    title: 'Wine flights, rotating pours, craft beers, and charcuterie boards.',
+    subtitle: 'Join us weekdays for curated wine specials, a rotating selection of craft beers, featured charcuterie boards, and a relaxed social atmosphere designed around conversation and discovery.',
+    images: [LOCAL_IMAGES.happyHourWine, LOCAL_IMAGES.happyHourBoard, LOCAL_IMAGES.happyHourBeer],
+  });
+
+  const privatePartiesSection = getHomeSection('PrivateParties', {
+    eyebrow: 'Private Parties',
+    title: 'We can host your private gatherings.',
+    subtitle: 'Whether you are planning a birthday celebration, bridal shower, rehearsal dinner, corporate event, or intimate gathering, Board offers a warm and elevated setting with curated food and wine experiences.',
+    images: [LOCAL_IMAGES.privateEvents],
+  });
+
+  const cateringSection = getHomeSection('Catering', {
+    eyebrow: 'Catering',
+    title: 'Charcuterie catering and wine experiences for gatherings of all sizes.',
+    subtitle: 'From intimate celebrations to corporate events, Board offers curated catering packages featuring artisan cheeses, charcuterie, wine pairings, and elevated presentation.',
+    images: [LOCAL_IMAGES.catering],
+  });
+
+  const renderHomeImageCarousel = (section, altText, heightClass = 'h-[500px]') => (
+    <div className={`relative overflow-hidden rounded-3xl shadow-lg ${heightClass}`}>
+      {section.images.map((src, index) => (
+        <CloudImage
+          key={src + index}
+          src={src}
+          alt={altText}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${index === happyHourImageIndex % section.images.length ? 'opacity-100' : 'opacity-0'}`}
+        />
+      ))}
+      {section.images.length > 1 && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
+          {section.images.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => setHappyHourImageIndex(index)}
+              aria-label={'Show image ' + (index + 1)}
+              className={`h-2.5 rounded-full transition-all ${index === happyHourImageIndex % section.images.length ? 'bg-white w-6' : 'bg-white/50 w-2.5 hover:bg-white/80'}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   const shopItems = [
     { category: 'wine', title: 'Wine by the Bottle', description: 'Take home a rotating selection of thoughtfully chosen bottles from the Board wine program.', image: LOCAL_IMAGES.wineBottle, action: 'Browse Bottles' },
@@ -723,7 +792,7 @@ export default function App() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setHappyHourImageIndex((current) => (current === happyHourImages.length - 1 ? 0 : current + 1));
+      setHappyHourImageIndex((current) => current + 1);
     }, 4000);
     return () => clearInterval(interval);
   }, []);
@@ -779,6 +848,25 @@ export default function App() {
     loadTable(TABLES.Hero)
       .then((rows) => applyIfMounted(setExternalHeroRows, visibleRows(rows)))
       .catch(() => applyIfMounted(setExternalHeroRows, []));
+
+    loadTable(TABLES.Home)
+      .then((rows) => {
+        const homeRows = visibleRows(rows)
+          .map((row) => ({
+            category: row.category || '',
+            title: row.title || '',
+            subtitle: row.subtitle || row.subTitle || '',
+            sortOrder: Number(row.sortOrder || 999),
+            mediaURL: tableMediaUrl(row),
+            mediaURL2: row.mediaURL2 || row.cloudinaryURL2 || row.image2 || row.photo2 || '',
+            mediaURL3: row.mediaURL3 || row.cloudinaryURL3 || row.image3 || row.photo3 || '',
+          }))
+          .filter((row) => row.category)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+
+        applyIfMounted(setExternalHomeRows, homeRows);
+      })
+      .catch(() => applyIfMounted(setExternalHomeRows, []));
 
     loadTable(TABLES.Venue)
       .then((rows) => {
@@ -1300,9 +1388,9 @@ export default function App() {
       <section id="happy-hour" aria-labelledby="happy-hour-heading" className="bg-stone-100 py-24 border-y border-stone-200">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
           <div>
-            <p className="uppercase tracking-[0.3em] text-sm text-stone-500 mb-4">Happy Hour</p>
-            <h2 id="happy-hour-heading" className="text-4xl font-serif mb-6 leading-tight">Wine flights, rotating pours, craft beers, and charcuterie boards.</h2>
-            <p className="text-lg text-stone-600 leading-relaxed mb-8">Join us weekdays for curated wine specials, a rotating selection of craft beers, featured charcuterie boards, and a relaxed social atmosphere designed around conversation and discovery.</p>
+            <p className="uppercase tracking-[0.3em] text-sm text-stone-500 mb-4">{happyHourSection.eyebrow}</p>
+            <h2 id="happy-hour-heading" className="text-4xl font-serif mb-6 leading-tight">{happyHourSection.title}</h2>
+            <p className="text-lg text-stone-600 leading-relaxed mb-8">{happyHourSection.subtitle}</p>
             <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm inline-block">
               <p className="text-sm uppercase tracking-[0.2em] text-stone-500 mb-2">Hours</p>
               {happyHourHours.map((row) => (
@@ -1310,16 +1398,7 @@ export default function App() {
               ))}
             </div>
           </div>
-          <div className="relative overflow-hidden rounded-3xl shadow-lg h-[500px]">
-            {happyHourImages.map((image, index) => (
-              <CloudImage key={image.alt} src={image.src} alt={image.alt} className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${index === happyHourImageIndex ? 'opacity-100' : 'opacity-0'}`} />
-            ))}
-            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
-              {happyHourImages.map((_, index) => (
-                <button key={index} type="button" onClick={() => setHappyHourImageIndex(index)} aria-label={'Show image ' + (index + 1)} className={`h-2.5 rounded-full transition-all ${index === happyHourImageIndex ? 'bg-white w-6' : 'bg-white/50 w-2.5 hover:bg-white/80'}`} />
-              ))}
-            </div>
-          </div>
+          {renderHomeImageCarousel(happyHourSection, 'Happy hour wine, beer, and charcuterie at Board Wine and Cheese', 'h-[500px]')}
         </div>
       </section>
 
@@ -1387,9 +1466,9 @@ export default function App() {
 
           <div className="bg-stone-800 border border-stone-700 rounded-3xl p-10 md:p-14 grid md:grid-cols-2 gap-10 items-center">
             <div>
-              <p className="uppercase tracking-[0.3em] text-sm text-stone-400 mb-4">Private Parties</p>
-              <h4 className="text-4xl font-serif mb-6 leading-tight">We can host your private gatherings.</h4>
-              <p className="text-stone-300 text-lg leading-relaxed mb-8">Whether you are planning a birthday celebration, bridal shower, rehearsal dinner, corporate event, or intimate gathering, Board offers a warm and elevated setting with curated food and wine experiences.</p>
+              <p className="uppercase tracking-[0.3em] text-sm text-stone-400 mb-4">{privatePartiesSection.eyebrow}</p>
+              <h4 className="text-4xl font-serif mb-6 leading-tight">{privatePartiesSection.title}</h4>
+              <p className="text-stone-300 text-lg leading-relaxed mb-8">{privatePartiesSection.subtitle}</p>
               <button type="button" onClick={() => setShowPrivateEventForm((current) => !current)} className="bg-white text-stone-900 px-8 py-4 rounded-full hover:bg-stone-200 transition-colors font-medium">{showPrivateEventForm ? 'Hide Private Event Form' : 'Inquire About Private Events'}</button>
               {showPrivateEventForm && (
                 <form onSubmit={(event) => handleInquirySubmit(event, 'private_events', setPrivateEventStatus)} className="mt-8 bg-stone-900 border border-stone-700 rounded-3xl p-8 text-left">
@@ -1417,7 +1496,7 @@ export default function App() {
                 </form>
               )}
             </div>
-            <CloudImage src={LOCAL_IMAGES.privateEvents} alt="Private wine and charcuterie event at Board Wine and Cheese" className="rounded-3xl shadow-lg object-cover h-[400px] w-full" />
+            {renderHomeImageCarousel(privatePartiesSection, 'Private wine and charcuterie event at Board Wine and Cheese', 'h-[400px]')}
           </div>
         </div>
       </section>
@@ -1477,11 +1556,11 @@ export default function App() {
 
       <section id="catering" aria-labelledby="catering-heading" className="bg-stone-100 py-24 border-y border-stone-200">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
-          <CloudImage src={LOCAL_IMAGES.catering} alt="Charcuterie catering boards with artisan cheese and wine pairings" className="rounded-3xl shadow-lg object-cover h-[500px] w-full" />
+          {renderHomeImageCarousel(cateringSection, 'Charcuterie catering boards with artisan cheese and wine pairings', 'h-[500px]')}
           <div>
-            <p className="uppercase tracking-[0.3em] text-sm text-stone-500 mb-4">Catering</p>
-            <h2 id="catering-heading" className="text-4xl font-serif mb-6 leading-tight">Charcuterie catering and wine experiences for gatherings of all sizes.</h2>
-            <p className="text-lg text-stone-600 leading-relaxed mb-8">From intimate celebrations to corporate events, Board offers curated catering packages featuring artisan cheeses, charcuterie, wine pairings, and elevated presentation.</p>
+            <p className="uppercase tracking-[0.3em] text-sm text-stone-500 mb-4">{cateringSection.eyebrow}</p>
+            <h2 id="catering-heading" className="text-4xl font-serif mb-6 leading-tight">{cateringSection.title}</h2>
+            <p className="text-lg text-stone-600 leading-relaxed mb-8">{cateringSection.subtitle}</p>
             <button
               type="button"
               onClick={() => setShowCateringForm((current) => !current)}
