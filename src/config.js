@@ -8,4 +8,5 @@ export const TABLES = {
   FAQs: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=0&single=true&output=csv',
   Reviews: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=999102820&single=true&output=csv',
   Shopping: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=1638245179&single=true&output=csv',
+  FullMenu: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_1mxQZuPoLoZaCxEuE6gFlnu_6lgtTTHrzgaiYfi1Mv-7n3MNQ9xHUJn4qwy9zBmp6tOBHxJVL0F5/pub?gid=771274199&single=true&output=csv',
 };

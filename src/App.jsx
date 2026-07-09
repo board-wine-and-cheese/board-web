@@ -121,6 +121,102 @@ function getSectionId(label) {
   return label.toLowerCase().trim().split(' ').filter(Boolean).join('-');
 }
 
+function parsePipeDelimitedRows(text, mapper) {
+  const lineBreak = String.fromCharCode(10);
+  const carriageReturn = String.fromCharCode(13);
+
+  return text
+    .split(lineBreak)
+    .map((line) => line.replace(carriageReturn, '').trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .map((line) => {
+      const values = line.split('|').map((value) => (value ? value.trim() : ''));
+      return mapper(values);
+    });
+}
+
+function parseVenueGalleryCsv(csvText) {
+  return csvText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .map((line) => {
+      const [title, subtitle, image] = line
+        .split('|')
+        .map((value) => value.trim());
+
+      return { title, subtitle, image };
+    });
+}
+
+function parseEventsCsv(csvText) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    title: values[0] || '',
+    date: values[1] || '',
+    url: values[2] || '#',
+    image: values[3] || 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=800&auto=format&fit=crop',
+  })).filter((event) => event.title && event.date);
+}
+
+function parseReviewsCsv(csvText) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    quote: values[0] || '',
+    author: values[1] || '',
+  })).filter((review) => review.quote && review.author);
+}
+
+function parseSimpleShopCsv(csvText, fallbackPhoto) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    name: values[0] || '',
+    price: values[1] || '',
+    photo: values[2] || fallbackPhoto,
+  })).filter((item) => item.name && item.price);
+}
+
+function parseSwagCsv(csvText) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    name: values[0] || '',
+    photo: values[1] || '',
+    price: values[2] || '',
+  })).filter((item) => item.name && item.price);
+}
+
+function parseHoursCsv(csvText) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    days: values[0] || '',
+    hours: values[1] || '',
+  })).filter((row) => row.days && row.hours);
+}
+
+function parseFaqCsv(csvText) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    question: values[0] || '',
+    answer: values[1] || '',
+    sortOrder: Number(values[2] || 999),
+    active: String(values[3] || 'yes').toLowerCase(),
+  }))
+    .filter((item) => item.question && item.answer && item.active !== 'no' && item.active !== 'false')
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function parseFeaturedEventsCsv(csvText) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    title: values[0] || '',
+    date: values[1] || '',
+    time: values[2] || '',
+    description: values[3] || '',
+  })).filter((event) => event.title && event.date);
+}
+
+function parseMenuCsv(csvText) {
+  return parsePipeDelimitedRows(csvText, (values) => ({
+    category: values[0] || '',
+    item: values[1] || '',
+    description: values[2] || '',
+    price: values[3] || '',
+    image: values[4] || '',
+  })).filter((item) => item.category && item.item);
+}
 
 function parseEventDate(dateText) {
   const monthNames = [
@@ -191,6 +287,19 @@ function buildCalendarMonths(events, monthCount = 3) {
   return months;
 }
 
+const parserTests = [
+  { name: 'events parser', result: parseEventsCsv('Band One | June 6 | https://example.com').length, expected: 1 },
+  { name: 'reviews parser', result: parseReviewsCsv('Great place | Sarah M.').length, expected: 1 },
+  { name: 'hours parser', result: parseHoursCsv('Tue-Fri | 4PM-10PM').length, expected: 1 },
+  { name: 'featured events parser', result: parseFeaturedEventsCsv('Event | June 4 | 5PM | Description').length, expected: 1 },
+];
+
+parserTests.forEach((test) => {
+  if (test.result !== test.expected) {
+    console.warn('Parser test failed:', test.name);
+  }
+});
+
 
 function buildTimeOptions(startHour = 14, endHour = 21) {
   const options = [];
@@ -221,6 +330,17 @@ const RESOS_BOOKING_URL = 'https://board.resos.com/booking';
 const RESOS_RESTAURANT_ID = 'D2tg5gKY3LXAMgByZ';
 const RESOS_DOMAIN = 'board.resos.com';
 
+{/* const RESOS_BOOKING_URL = 'https://restaurant-1780243399.resos.com/booking'; */}
+{/* const RESOS_RESTAURANT_ID = 'xAa6YYk2iJ6j6jmzT'; */}
+{/* const RESOS_DOMAIN = 'restaurant-1780243399.resos.com'; */}
+
+{/*
+  <!-- resOS Booking widget v3 script START -->
+  <a class="resos-booking-widget" href="https://board.resos.com/booking" 
+  data-lang="en" data-restaurant-id="D2tg5gKY3LXAMgByZ" 
+  data-domain="board.resos.com">Book a table</a><div id="resos-booking-script-3" style="text-align:center;opacity:0.6;font-size:70%;margin-top:10px;"><a target="_blank" rel="noopener" href="https://resos.com/?utm_source=restaurantsite&utm_medium=bookingwidget">Restaurant booking system by resOS</a></div><script type="text/javascript">(function() {const scr=document.createElement("script");scr.src="https://board.resos.com/embed/booking/widget.js?ts="+new Date().getTime();document.getElementById("resos-booking-script-3").appendChild(scr);})()</script>
+<!-- resOS Booking widget v3 script END -->
+*/}
 
 function ResosBookingWidget() {
   useEffect(() => {
@@ -310,6 +430,7 @@ export default function App() {
   const [externalFeaturedEvents, setExternalFeaturedEvents] = useState([]);
   const [externalFaqItems, setExternalFaqItems] = useState([]);
   const [externalMenuItems, setExternalMenuItems] = useState([]);
+  const [externalFullMenuRows, setExternalFullMenuRows] = useState([]);
   const [externalHeroRows, setExternalHeroRows] = useState([]);
   const [reviewScrollPaused, setReviewScrollPaused] = useState(false);
   const [expandedMenuCategories, setExpandedMenuCategories] = useState({});
@@ -317,17 +438,15 @@ export default function App() {
   const reviewSliderRef = useRef(null);
 
 
-  // Keep the hero media stable and immediately discoverable by the browser.
-  // Google Sheets controls the hero text, but not the video/poster URLs; otherwise
-  // the fallback video can begin loading and then flicker when the sheet data arrives.
-  const HERO_VIDEO_URL = 'https://res.cloudinary.com/boardwineandcheese/video/upload/f_auto,q_auto/v1783267164/hero/board-hero.mp4';
-  const HERO_POSTER_URL = 'https://res.cloudinary.com/boardwineandcheese/image/upload/f_auto,q_auto/v1783279489/main/wines.jpg';
+  const HERO_VIDEO_URL = '/videos/board-hero.mp4';
+  const HERO_POSTER_URL = '/images/wine-bottle.jpg';
   const activeHero = externalHeroRows[0] || {};
   const heroTitle = activeHero.title || 'Board Wine & Cheese in Kittery, Maine';
   const heroSubtitle = activeHero.subtitle || activeHero.subTitle || 'A relaxed neighborhood wine bar for thoughtfully selected wines, craft beer, artisan cheeses, charcuterie boards, wine flights, seasonal dishes, private events, catering, and live music near Portsmouth, New Hampshire.';
+  const heroMediaUrl = activeHero.mediaURL || activeHero.cloudinaryURL || '';
   const [heroVideoFailed, setHeroVideoFailed] = useState(false);
-  const heroVideoUrl = cloudinaryVideoUrl(HERO_VIDEO_URL);
-  const heroPosterUrl = cloudinaryImageUrl(HERO_POSTER_URL);
+  const heroVideoUrl = cloudinaryVideoUrl(heroMediaUrl || HERO_VIDEO_URL);
+  const heroPosterUrl = HERO_POSTER_URL;
 
   const [venueSlides, setVenueSlides] = useState([
     {
@@ -464,6 +583,12 @@ export default function App() {
   ];
 
   const menuItems = externalMenuItems.length ? externalMenuItems : fallbackMenuItems;
+  const fullMenuRow = externalFullMenuRows[0] || {};
+  const fullMenuTitle = fullMenuRow.title || 'View Full Menu';
+  const fullMenuPdfUrl = fullMenuRow.mediaURL || fullMenuRow.cloudinaryURL || fullMenuRow.pdfURL || '/pdf/current-menu.pdf';
+  const fullMenuEmbedUrl = fullMenuPdfUrl.includes('#')
+    ? fullMenuPdfUrl
+    : fullMenuPdfUrl + '#toolbar=0&navpanes=0&scrollbar=0';
   const menuCategories = Array.from(new Set(menuItems.map((item) => item.category)));
   const signaturePreviewCategories = menuCategories.slice(0, 3);
 
@@ -683,6 +808,17 @@ export default function App() {
       })
       .catch(() => applyIfMounted(setExternalMenuItems, []));
 
+    loadTable(TABLES.FullMenu)
+      .then((rows) => {
+        const fullMenuRows = visibleRows(rows).map((row) => ({
+          title: row.title || '',
+          mediaURL: row.mediaURL || row.cloudinaryURL || row.pdfURL || '',
+        })).filter((row) => row.title || row.mediaURL);
+
+        applyIfMounted(setExternalFullMenuRows, fullMenuRows);
+      })
+      .catch(() => applyIfMounted(setExternalFullMenuRows, []));
+
     loadTable(TABLES.LiveArtists)
       .then((rows) => {
         const artistRows = visibleRows(rows).map((row) => ({
@@ -860,12 +996,11 @@ export default function App() {
             muted
             loop
             playsInline
-            preload="auto"
             poster={heroPosterUrl}
-            onCanPlay={() => setHeroVideoFailed(false)}
             onError={() => setHeroVideoFailed(true)}
           >
-            <source src={heroVideoUrl} />
+            {/* Replace HERO_VIDEO_URL and HERO_POSTER_URL near the top of this file with your own local assets. */}
+            <source src={heroVideoUrl} type="video/mp4" />
           </video>
         )}
         <div className="absolute inset-0 bg-black/40" />
@@ -1049,7 +1184,7 @@ export default function App() {
               onClick={() => setShowMenuPdfModal(true)}
               className="inline-flex items-center justify-center bg-stone-900 text-white px-10 py-4 rounded-full text-lg hover:bg-stone-700 transition-colors shadow-sm"
             >
-              View Full Menu
+              {fullMenuTitle}
             </button>
             
             <a
@@ -1129,12 +1264,12 @@ export default function App() {
             <div className="flex items-center justify-between gap-4 border-b border-stone-200 px-5 py-4 sm:px-8">
               <div>
                 <p className="uppercase tracking-[0.3em] text-xs text-stone-500 mb-1">Menu</p>
-                <h3 className="text-2xl sm:text-3xl font-serif text-stone-900">Current Menu</h3>
+                <h3 className="text-2xl sm:text-3xl font-serif text-stone-900">{fullMenuTitle}</h3>
               </div>
 
               <div className="flex items-center gap-3">
                 <a
-                  href="/pdf/current-menu.pdf"
+                  href={fullMenuPdfUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hidden sm:inline-flex border border-stone-300 px-5 py-2.5 rounded-full text-sm hover:bg-white transition-colors"
@@ -1154,7 +1289,7 @@ export default function App() {
             </div>
 
             <iframe
-              src="/pdf/current-menu.pdf#toolbar=0&navpanes=0&scrollbar=0"
+              src={fullMenuEmbedUrl}
               title="Current Board menu PDF"
               className="h-full w-full bg-white"
             />
@@ -1294,7 +1429,7 @@ export default function App() {
               <div>
                 <p className="uppercase tracking-[0.3em] text-sm text-stone-500 mb-2">Full Calendar</p>
                 <h3 className="text-4xl font-serif">Upcoming Events</h3>
-                <p className="mt-3 text-stone-600">Showing the current month and upcoming months from the published website content tables.</p>
+                <p className="mt-3 text-stone-600">Showing the current month and upcoming months from the music and featured-event CSV files.</p>
               </div>
               <button type="button" onClick={() => setShowCalendarModal(false)} className="h-11 w-11 rounded-full border border-stone-300 hover:bg-white transition-colors" aria-label="Close calendar">X</button>
             </div>
