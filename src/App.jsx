@@ -1433,7 +1433,7 @@ export default function App() {
                     <p className="text-stone-400 text-xs uppercase tracking-wide mb-2">{event.date}</p>
                     <h3 className="text-lg font-serif leading-snug text-white">{event.title}</h3>
                     {event.url && event.url !== '#' && (
-                      <a href={event.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-sm text-stone-300 underline underline-offset-4 hover:text-white">Event Details</a>
+                      <a href={event.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-sm text-stone-300 underline underline-offset-4 hover:text-white">Website</a>
                     )}
                   </div>
                 </article>
