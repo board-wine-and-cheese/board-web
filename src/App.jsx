@@ -404,6 +404,47 @@ function ResosBookingWidget() {
   );
 }
 
+function SectionCarousel({ images, altPrefix, heightClass = "h-[500px]" }) {
+  const safeImages = (images || []).filter(Boolean);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (safeImages.length <= 1) return undefined;
+    const timer = setInterval(() => {
+      setIndex((current) => (current + 1) % safeImages.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [safeImages.length]);
+
+  if (!safeImages.length) return null;
+
+  return (
+    <div className={`relative overflow-hidden rounded-3xl shadow-lg ${heightClass}`}>
+      {safeImages.map((src, imageIndex) => (
+        <CloudImage
+          key={src}
+          src={src}
+          alt={`${altPrefix} ${imageIndex + 1}`}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${imageIndex === index ? 'opacity-100' : 'opacity-0'}`}
+        />
+      ))}
+      {safeImages.length > 1 && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+          {safeImages.map((_, imageIndex) => (
+            <button
+              key={imageIndex}
+              type="button"
+              onClick={() => setIndex(imageIndex)}
+              aria-label={`Show image ${imageIndex + 1}`}
+              className={`h-2.5 rounded-full transition-all ${imageIndex === index ? 'bg-white w-6' : 'bg-white/50 w-2.5 hover:bg-white/80'}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [showPrivateEventForm, setShowPrivateEventForm] = useState(false);
   const [showCateringForm, setShowCateringForm] = useState(false);
@@ -431,13 +472,15 @@ export default function App() {
   const [externalFaqItems, setExternalFaqItems] = useState([]);
   const [externalMenuItems, setExternalMenuItems] = useState([]);
   const [externalHeroRows, setExternalHeroRows] = useState([]);
+  const [externalHomeRows, setExternalHomeRows] = useState([]);
+  const [externalFullMenuRows, setExternalFullMenuRows] = useState([]);
   const [reviewScrollPaused, setReviewScrollPaused] = useState(false);
   const [expandedMenuCategories, setExpandedMenuCategories] = useState({});
   const [activeMenuItem, setActiveMenuItem] = useState(null);
   const reviewSliderRef = useRef(null);
 
 
-  const HERO_VIDEO_URL = '/videos/board-hero.mp4';
+  const HERO_VIDEO_URL = 'https://res.cloudinary.com/boardwineandcheese/video/upload/v1783267164/hero/board-hero.mp4';
   const HERO_POSTER_URL = '/images/wine-bottle.jpg';
   const activeHero = externalHeroRows[0] || {};
   const heroTitle = activeHero.title || 'Board Wine & Cheese in Kittery, Maine';
@@ -446,6 +489,22 @@ export default function App() {
   const [heroVideoFailed, setHeroVideoFailed] = useState(false);
   const heroVideoUrl = cloudinaryVideoUrl(heroMediaUrl || HERO_VIDEO_URL);
   const heroPosterUrl = HERO_POSTER_URL;
+
+  const homeRows = visibleRows(externalHomeRows);
+  const findHomeRow = (category) => homeRows.find((row) =>
+    String(row.category || '').replace(/[^a-z0-9]/gi, '').toLowerCase() ===
+    String(category).replace(/[^a-z0-9]/gi, '').toLowerCase()
+  ) || {};
+  const homeImages = (row, fallbacks = []) => [row.mediaURL, row.mediaURL2, row.mediaURL3, ...fallbacks].filter(Boolean).slice(0, 3);
+
+  const happyHourHome = findHomeRow('HappyHour');
+  const privatePartiesHome = findHomeRow('PrivateParties');
+  const cateringHome = findHomeRow('Catering');
+
+  const fullMenuRow = visibleRows(externalFullMenuRows)[0] || {};
+  const fullMenuButtonText = fullMenuRow.buttonText || fullMenuRow.title || 'View Full Menu';
+  const fullMenuUrl = fullMenuRow.url || fullMenuRow.pdfURL || fullMenuRow.mediaURL || '/pdf/current-menu.pdf';
+
 
   const [venueSlides, setVenueSlides] = useState([
     {
@@ -603,12 +662,12 @@ export default function App() {
   const reviews = externalReviews.length ? externalReviews : fallbackReviews;
 
   const fallbackMusicEvents = [
-    { title: 'The Seacoast Ramblers', date: 'June 6 - 7PM', url: '#', spotifyURL: '', image: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=800&auto=format&fit=crop' },
-    { title: 'Emma James Trio', date: 'June 8 - 6PM', url: '#', spotifyURL: '', image: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=800&auto=format&fit=crop' },
-    { title: 'Vinyl Night with DJ Luca', date: 'June 12 - 8PM', url: '#', spotifyURL: '', image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=800&auto=format&fit=crop' },
-    { title: 'Jazz on the Patio', date: 'June 15 - 5PM', url: '#', spotifyURL: '', image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=800&auto=format&fit=crop' },
-    { title: 'Acoustic Sunday Sessions', date: 'June 18 - 4PM', url: '#', spotifyURL: '', image: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?q=80&w=800&auto=format&fit=crop' },
-    { title: 'Bluegrass and Bubbles', date: 'June 21 - 7PM', url: '#', spotifyURL: '', image: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?q=80&w=800&auto=format&fit=crop' },
+    { title: 'The Seacoast Ramblers', date: 'June 6 - 7PM', url: '#', image: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=800&auto=format&fit=crop' },
+    { title: 'Emma James Trio', date: 'June 8 - 6PM', url: '#', image: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=800&auto=format&fit=crop' },
+    { title: 'Vinyl Night with DJ Luca', date: 'June 12 - 8PM', url: '#', image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=800&auto=format&fit=crop' },
+    { title: 'Jazz on the Patio', date: 'June 15 - 5PM', url: '#', image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=800&auto=format&fit=crop' },
+    { title: 'Acoustic Sunday Sessions', date: 'June 18 - 4PM', url: '#', image: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?q=80&w=800&auto=format&fit=crop' },
+    { title: 'Bluegrass and Bubbles', date: 'June 21 - 7PM', url: '#', image: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?q=80&w=800&auto=format&fit=crop' },
   ];
 
   const musicEvents = externalMusicEvents.length ? externalMusicEvents : fallbackMusicEvents;
@@ -676,11 +735,11 @@ export default function App() {
     [calendarEvents]
   );
 
-  const happyHourImages = [
-    { src: LOCAL_IMAGES.happyHourWine, alt: 'Wine glasses' },
-    { src: LOCAL_IMAGES.happyHourBoard, alt: 'Charcuterie board' },
-    { src: LOCAL_IMAGES.happyHourBeer, alt: 'Craft beer' },
-  ];
+  const happyHourImages = homeImages(happyHourHome, [
+    LOCAL_IMAGES.happyHourWine,
+    LOCAL_IMAGES.happyHourBoard,
+    LOCAL_IMAGES.happyHourBeer,
+  ]).map((src, index) => ({ src, alt: `Happy Hour ${index + 1}` }));
 
   const shopItems = [
     { category: 'wine', title: 'Wine by the Bottle', description: 'Take home a rotating selection of thoughtfully chosen bottles from the Board wine program.', image: LOCAL_IMAGES.wineBottle, action: 'Browse Bottles' },
@@ -771,7 +830,21 @@ export default function App() {
 
     loadTable(TABLES.Hero)
       .then((rows) => applyIfMounted(setExternalHeroRows, visibleRows(rows)))
-      .catch(() => applyIfMounted(setExternalHeroRows, []));
+      .catch((error) => { console.error('Unable to load Hero table:', error); applyIfMounted(setExternalHeroRows, []); });
+
+    loadTable(TABLES.Home)
+      .then((rows) => applyIfMounted(setExternalHomeRows, visibleRows(rows)))
+      .catch((error) => {
+        console.error('Unable to load Home table:', error);
+        applyIfMounted(setExternalHomeRows, []);
+      });
+
+    loadTable(TABLES.FullMenu)
+      .then((rows) => applyIfMounted(setExternalFullMenuRows, visibleRows(rows)))
+      .catch((error) => {
+        console.error('Unable to load FullMenu table:', error);
+        applyIfMounted(setExternalFullMenuRows, []);
+      });
 
     loadTable(TABLES.Venue)
       .then((rows) => {
@@ -801,19 +874,19 @@ export default function App() {
       })
       .catch(() => applyIfMounted(setExternalMenuItems, []));
 
-    loadTable(TABLES.LiveEvents)
+    loadTable(TABLES.LiveArtists)
       .then((rows) => {
         const artistRows = visibleRows(rows).map((row) => ({
           title: row.title || '',
           date: row.time ? `${row.date || ''} - ${row.time}` : row.date || '',
-          url: row.artistURL || '#',
+          url: row.artistURL || row.websiteURL || row.url || '#',
           spotifyURL: row.spotifyURL || '',
           image: tableMediaUrl(row) || 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=800&auto=format&fit=crop',
         })).filter((event) => event.title && event.date);
 
         applyIfMounted(setExternalMusicEvents, artistRows);
       })
-      .catch(() => applyIfMounted(setExternalMusicEvents, []));
+      .catch((error) => { console.error('Unable to load LiveArtists table:', error); applyIfMounted(setExternalMusicEvents, []); });
 
     loadTable(TABLES.FeaturedEvents)
       .then((rows) => {
@@ -1167,7 +1240,7 @@ export default function App() {
               onClick={() => setShowMenuPdfModal(true)}
               className="inline-flex items-center justify-center bg-stone-900 text-white px-10 py-4 rounded-full text-lg hover:bg-stone-700 transition-colors shadow-sm"
             >
-              View Full Menu
+              {fullMenuButtonText}
             </button>
             
             <a
@@ -1252,7 +1325,7 @@ export default function App() {
 
               <div className="flex items-center gap-3">
                 <a
-                  href="/pdf/current-menu.pdf"
+                  href={fullMenuUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hidden sm:inline-flex border border-stone-300 px-5 py-2.5 rounded-full text-sm hover:bg-white transition-colors"
@@ -1272,7 +1345,7 @@ export default function App() {
             </div>
 
             <iframe
-              src="/pdf/current-menu.pdf#toolbar=0&navpanes=0&scrollbar=0"
+              src={`${fullMenuUrl}#toolbar=0&navpanes=0&scrollbar=0`}
               title="Current Board menu PDF"
               className="h-full w-full bg-white"
             />
@@ -1284,8 +1357,8 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
           <div>
             <p className="uppercase tracking-[0.3em] text-sm text-stone-500 mb-4">Happy Hour</p>
-            <h2 id="happy-hour-heading" className="text-4xl font-serif mb-6 leading-tight">Wine flights, rotating pours, craft beers, and charcuterie boards.</h2>
-            <p className="text-lg text-stone-600 leading-relaxed mb-8">Join us weekdays for curated wine specials, a rotating selection of craft beers, featured charcuterie boards, and a relaxed social atmosphere designed around conversation and discovery.</p>
+            <h2 id="happy-hour-heading" className="text-4xl font-serif mb-6 leading-tight">{happyHourHome.title || 'Wine flights, rotating pours, craft beers, and charcuterie boards.'}</h2>
+            <p className="text-lg text-stone-600 leading-relaxed mb-8">{happyHourHome.subtitle || happyHourHome.subTitle || 'Join us weekdays for curated wine specials, a rotating selection of craft beers, featured charcuterie boards, and a relaxed social atmosphere designed around conversation and discovery.'}</p>
             <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm inline-block">
               <p className="text-sm uppercase tracking-[0.2em] text-stone-500 mb-2">Hours</p>
               {happyHourHours.map((row) => (
@@ -1336,30 +1409,14 @@ export default function App() {
                   <div className="p-5">
                     <p className="text-stone-400 text-xs uppercase tracking-wide mb-2">{event.date}</p>
                     <h3 className="text-lg font-serif leading-snug text-white">{event.title}</h3>
-                    {(event.url && event.url !== '#') || event.spotifyURL ? (
-                      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
-                        {event.url && event.url !== '#' && (
-                          <a
-                            href={event.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex text-sm text-stone-300 underline underline-offset-4 hover:text-white"
-                          >
-                            Website
-                          </a>
-                        )}
-                        {event.spotifyURL && (
-                          <a
-                            href={event.spotifyURL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex text-sm text-stone-300 underline underline-offset-4 hover:text-white"
-                          >
-                            Spotify
-                          </a>
-                        )}
-                      </div>
-                    ) : null}
+                    <div className="mt-4 flex flex-wrap gap-4">
+                      {event.url && event.url !== '#' && (
+                        <a href={event.url} target="_blank" rel="noopener noreferrer" className="inline-flex text-sm text-stone-300 underline underline-offset-4 hover:text-white">Website</a>
+                      )}
+                      {event.spotifyURL && (
+                        <a href={event.spotifyURL} target="_blank" rel="noopener noreferrer" className="inline-flex text-sm text-stone-300 underline underline-offset-4 hover:text-white">Spotify</a>
+                      )}
+                    </div>
                   </div>
                 </article>
               ))}
@@ -1387,13 +1444,16 @@ export default function App() {
                 </article>
               ))}
             </div>
+            <div className="mt-8 flex justify-center">
+              <button type="button" onClick={() => setShowCalendarModal(true)} className="inline-flex border border-stone-600 px-6 py-3 rounded-full text-sm hover:bg-stone-800 transition-colors">View Full Calendar</button>
+            </div>
           </div>
 
           <div className="bg-stone-800 border border-stone-700 rounded-3xl p-10 md:p-14 grid md:grid-cols-2 gap-10 items-center">
             <div>
               <p className="uppercase tracking-[0.3em] text-sm text-stone-400 mb-4">Private Parties</p>
-              <h4 className="text-4xl font-serif mb-6 leading-tight">We can host your private gatherings.</h4>
-              <p className="text-stone-300 text-lg leading-relaxed mb-8">Whether you are planning a birthday celebration, bridal shower, rehearsal dinner, corporate event, or intimate gathering, Board offers a warm and elevated setting with curated food and wine experiences.</p>
+              <h4 className="text-4xl font-serif mb-6 leading-tight">{privatePartiesHome.title || 'We can host your private gatherings.'}</h4>
+              <p className="text-stone-300 text-lg leading-relaxed mb-8">{privatePartiesHome.subtitle || privatePartiesHome.subTitle || 'Whether you are planning a birthday celebration, bridal shower, rehearsal dinner, corporate event, or intimate gathering, Board offers a warm and elevated setting with curated food and wine experiences.'}</p>
               <button type="button" onClick={() => setShowPrivateEventForm((current) => !current)} className="bg-white text-stone-900 px-8 py-4 rounded-full hover:bg-stone-200 transition-colors font-medium">{showPrivateEventForm ? 'Hide Private Event Form' : 'Inquire About Private Events'}</button>
               {showPrivateEventForm && (
                 <form onSubmit={(event) => handleInquirySubmit(event, 'private_events', setPrivateEventStatus)} className="mt-8 bg-stone-900 border border-stone-700 rounded-3xl p-8 text-left">
@@ -1421,7 +1481,7 @@ export default function App() {
                 </form>
               )}
             </div>
-            <CloudImage src={LOCAL_IMAGES.privateEvents} alt="Private wine and charcuterie event at Board Wine and Cheese" className="rounded-3xl shadow-lg object-cover h-[400px] w-full" />
+            <SectionCarousel images={homeImages(privatePartiesHome, [LOCAL_IMAGES.privateEvents])} altPrefix="Private party at Board Wine and Cheese" heightClass="h-[400px]" />
           </div>
         </div>
       </section>
@@ -1481,11 +1541,11 @@ export default function App() {
 
       <section id="catering" aria-labelledby="catering-heading" className="bg-stone-100 py-24 border-y border-stone-200">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
-          <CloudImage src={LOCAL_IMAGES.catering} alt="Charcuterie catering boards with artisan cheese and wine pairings" className="rounded-3xl shadow-lg object-cover h-[500px] w-full" />
+          <SectionCarousel images={homeImages(cateringHome, [LOCAL_IMAGES.catering])} altPrefix="Board catering" heightClass="h-[500px]" />
           <div>
             <p className="uppercase tracking-[0.3em] text-sm text-stone-500 mb-4">Catering</p>
-            <h2 id="catering-heading" className="text-4xl font-serif mb-6 leading-tight">Charcuterie catering and wine experiences for gatherings of all sizes.</h2>
-            <p className="text-lg text-stone-600 leading-relaxed mb-8">From intimate celebrations to corporate events, Board offers curated catering packages featuring artisan cheeses, charcuterie, wine pairings, and elevated presentation.</p>
+            <h2 id="catering-heading" className="text-4xl font-serif mb-6 leading-tight">{cateringHome.title || 'Charcuterie catering and wine experiences for gatherings of all sizes.'}</h2>
+            <p className="text-lg text-stone-600 leading-relaxed mb-8">{cateringHome.subtitle || cateringHome.subTitle || 'From intimate celebrations to corporate events, Board offers curated catering packages featuring artisan cheeses, charcuterie, wine pairings, and elevated presentation.'}</p>
             <button
               type="button"
               onClick={() => setShowCateringForm((current) => !current)}
