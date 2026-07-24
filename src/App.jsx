@@ -828,151 +828,220 @@ export default function App() {
 
     const tableMediaUrl = (row) => row.mediaURL || row.cloudinaryURL || row.image || row.photo || '';
 
-    loadTable(TABLES.Hero)
-      .then((rows) => applyIfMounted(setExternalHeroRows, visibleRows(rows)))
-      .catch((error) => { console.error('Unable to load Hero table:', error); applyIfMounted(setExternalHeroRows, []); });
+    const handleLoadError = (label, error, onInitialError, isInitialLoad) => {
+      console.error(`Unable to load ${label} table:`, error);
+      if (isInitialLoad && onInitialError) {
+        onInitialError();
+      }
+    };
 
-    loadTable(TABLES.Home)
-      .then((rows) => applyIfMounted(setExternalHomeRows, visibleRows(rows)))
-      .catch((error) => {
-        console.error('Unable to load Home table:', error);
-        applyIfMounted(setExternalHomeRows, []);
-      });
+    const loadAllTables = async ({ force = false, isInitialLoad = false } = {}) => {
+      const options = { force };
 
-    loadTable(TABLES.FullMenu)
-      .then((rows) => applyIfMounted(setExternalFullMenuRows, visibleRows(rows)))
-      .catch((error) => {
-        console.error('Unable to load FullMenu table:', error);
-        applyIfMounted(setExternalFullMenuRows, []);
-      });
+      const tableLoads = [
+        loadTable(TABLES.Hero, options)
+          .then((rows) => {
+            applyIfMounted(setExternalHeroRows, visibleRows(rows));
+            applyIfMounted(setHeroVideoFailed, false);
+          })
+          .catch((error) => handleLoadError(
+            'Hero',
+            error,
+            () => applyIfMounted(setExternalHeroRows, []),
+            isInitialLoad,
+          )),
 
-    loadTable(TABLES.Venue)
-      .then((rows) => {
-        const slides = visibleRows(rows).map((row) => ({
-          title: row.title || '',
-          subtitle: row.subtitle || row.subTitle || '',
-          image: tableMediaUrl(row),
-        })).filter((slide) => slide.title && slide.image);
+        loadTable(TABLES.Home, options)
+          .then((rows) => applyIfMounted(setExternalHomeRows, visibleRows(rows)))
+          .catch((error) => handleLoadError(
+            'Home',
+            error,
+            () => applyIfMounted(setExternalHomeRows, []),
+            isInitialLoad,
+          )),
 
-        if (slides.length) {
-          applyIfMounted(setVenueSlides, slides);
-        }
-      })
-      .catch(() => {});
+        loadTable(TABLES.FullMenu, options)
+          .then((rows) => applyIfMounted(setExternalFullMenuRows, visibleRows(rows)))
+          .catch((error) => handleLoadError(
+            'FullMenu',
+            error,
+            () => applyIfMounted(setExternalFullMenuRows, []),
+            isInitialLoad,
+          )),
 
-    loadTable(TABLES.Menu)
-      .then((rows) => {
-        const menuRows = visibleRows(rows).map((row) => ({
-          category: row.category || '',
-          item: row.item || '',
-          description: row.description || '',
-          price: row.price || '',
-          image: tableMediaUrl(row),
-        })).filter((item) => item.category && item.item);
+        loadTable(TABLES.Venue, options)
+          .then((rows) => {
+            const slides = visibleRows(rows).map((row) => ({
+              title: row.title || '',
+              subtitle: row.subtitle || row.subTitle || '',
+              image: tableMediaUrl(row),
+            })).filter((slide) => slide.title && slide.image);
 
-        applyIfMounted(setExternalMenuItems, menuRows);
-      })
-      .catch(() => applyIfMounted(setExternalMenuItems, []));
+            if (slides.length) {
+              applyIfMounted(setVenueSlides, slides);
+            }
+          })
+          .catch((error) => handleLoadError('Venue', error, null, isInitialLoad)),
 
-    loadTable(TABLES.LiveArtists)
-      .then((rows) => {
-        const artistRows = visibleRows(rows).map((row) => ({
-          title: row.title || '',
-          date: row.time ? `${row.date || ''} - ${row.time}` : row.date || '',
-          url: row.artistURL || row.websiteURL || row.url || '#',
-          spotifyURL: row.spotifyURL || '',
-          image: tableMediaUrl(row) || 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=800&auto=format&fit=crop',
-        })).filter((event) => event.title && event.date);
+        loadTable(TABLES.Menu, options)
+          .then((rows) => {
+            const menuRows = visibleRows(rows).map((row) => ({
+              category: row.category || '',
+              item: row.item || '',
+              description: row.description || '',
+              price: row.price || '',
+              image: tableMediaUrl(row),
+            })).filter((item) => item.category && item.item);
 
-        applyIfMounted(setExternalMusicEvents, artistRows);
-      })
-      .catch((error) => { console.error('Unable to load LiveArtists table:', error); applyIfMounted(setExternalMusicEvents, []); });
+            applyIfMounted(setExternalMenuItems, menuRows);
+          })
+          .catch((error) => handleLoadError(
+            'Menu',
+            error,
+            () => applyIfMounted(setExternalMenuItems, []),
+            isInitialLoad,
+          )),
 
-    loadTable(TABLES.FeaturedEvents)
-      .then((rows) => {
-        const featuredRows = visibleRows(rows).map((row) => ({
-          title: row.title || '',
-          date: row.date || '',
-          time: row.time || '',
-          description: row.subtitle || row.subTitle || row.description || '',
-        })).filter((event) => event.title && event.date);
+        loadTable(TABLES.LiveArtists, options)
+          .then((rows) => {
+            const artistRows = visibleRows(rows).map((row) => ({
+              title: row.title || '',
+              date: row.time ? `${row.date || ''} - ${row.time}` : row.date || '',
+              url: row.artistURL || row.websiteURL || row.url || '#',
+              spotifyURL: row.spotifyURL || '',
+              image: tableMediaUrl(row) || 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=800&auto=format&fit=crop',
+            })).filter((event) => event.title && event.date);
 
-        applyIfMounted(setExternalFeaturedEvents, featuredRows);
-      })
-      .catch(() => applyIfMounted(setExternalFeaturedEvents, []));
+            applyIfMounted(setExternalMusicEvents, artistRows);
+          })
+          .catch((error) => handleLoadError(
+            'LiveArtists',
+            error,
+            () => applyIfMounted(setExternalMusicEvents, []),
+            isInitialLoad,
+          )),
 
-    loadTable(TABLES.Hours)
-      .then((rows) => {
-        const hourRows = visibleRows(rows);
-        const generalHours = hourRows
-          .filter((row) => String(row.category || '').toLowerCase() === 'general')
-          .map((row) => ({ days: row.day || row.days || '', hours: row.time || row.hours || '' }))
-          .filter((row) => row.days && row.hours);
+        loadTable(TABLES.FeaturedEvents, options)
+          .then((rows) => {
+            const featuredRows = visibleRows(rows).map((row) => ({
+              title: row.title || '',
+              date: row.date || '',
+              time: row.time || '',
+              description: row.subtitle || row.subTitle || row.description || '',
+            })).filter((event) => event.title && event.date);
 
-        const happyHours = hourRows
-          .filter((row) => String(row.category || '').toLowerCase() === 'happy hour')
-          .map((row) => ({ days: row.day || row.days || '', hours: row.time || row.hours || '' }))
-          .filter((row) => row.days && row.hours);
+            applyIfMounted(setExternalFeaturedEvents, featuredRows);
+          })
+          .catch((error) => handleLoadError(
+            'FeaturedEvents',
+            error,
+            () => applyIfMounted(setExternalFeaturedEvents, []),
+            isInitialLoad,
+          )),
 
-        applyIfMounted(setExternalBusinessHours, generalHours);
-        applyIfMounted(setExternalHappyHourHours, happyHours);
-      })
-      .catch(() => {
-        applyIfMounted(setExternalBusinessHours, []);
-        applyIfMounted(setExternalHappyHourHours, []);
-      });
+        loadTable(TABLES.Hours, options)
+          .then((rows) => {
+            const hourRows = visibleRows(rows);
+            const generalHours = hourRows
+              .filter((row) => String(row.category || '').toLowerCase() === 'general')
+              .map((row) => ({ days: row.day || row.days || '', hours: row.time || row.hours || '' }))
+              .filter((row) => row.days && row.hours);
 
-    loadTable(TABLES.FAQs)
-      .then((rows) => {
-        const faqRows = visibleRows(rows).map((row) => ({
-          question: row.question || '',
-          answer: row.answer || '',
-          sortOrder: Number(row.sortOrder || 999),
-          active: 'yes',
-          category: row.category || '',
-        })).filter((item) => item.question && item.answer);
+            const happyHours = hourRows
+              .filter((row) => String(row.category || '').toLowerCase() === 'happy hour')
+              .map((row) => ({ days: row.day || row.days || '', hours: row.time || row.hours || '' }))
+              .filter((row) => row.days && row.hours);
 
-        applyIfMounted(setExternalFaqItems, faqRows);
-      })
-      .catch(() => applyIfMounted(setExternalFaqItems, []));
+            applyIfMounted(setExternalBusinessHours, generalHours);
+            applyIfMounted(setExternalHappyHourHours, happyHours);
+          })
+          .catch((error) => handleLoadError(
+            'Hours',
+            error,
+            () => {
+              applyIfMounted(setExternalBusinessHours, []);
+              applyIfMounted(setExternalHappyHourHours, []);
+            },
+            isInitialLoad,
+          )),
 
-    loadTable(TABLES.Reviews)
-      .then((rows) => {
-        const reviewRows = visibleRows(rows).map((row) => ({
-          quote: row.review || row.quote || '',
-          author: row.reviewer || row.author || '',
-          stars: Number(row.stars || 5),
-        })).filter((review) => review.quote && review.author);
+        loadTable(TABLES.FAQs, options)
+          .then((rows) => {
+            const faqRows = visibleRows(rows).map((row) => ({
+              question: row.question || '',
+              answer: row.answer || '',
+              sortOrder: Number(row.sortOrder || 999),
+              active: 'yes',
+              category: row.category || '',
+            })).filter((item) => item.question && item.answer);
 
-        applyIfMounted(setExternalReviews, reviewRows);
-      })
-      .catch(() => applyIfMounted(setExternalReviews, []));
+            applyIfMounted(setExternalFaqItems, faqRows);
+          })
+          .catch((error) => handleLoadError(
+            'FAQs',
+            error,
+            () => applyIfMounted(setExternalFaqItems, []),
+            isInitialLoad,
+          )),
 
-    loadTable(TABLES.Shopping)
-      .then((rows) => {
-        const shoppingRows = visibleRows(rows).map((row) => ({
-          category: row.category || '',
-          name: row.item || row.name || '',
-          price: row.price || '',
-          photo: tableMediaUrl(row),
-        })).filter((item) => item.category && item.name && item.price);
+        loadTable(TABLES.Reviews, options)
+          .then((rows) => {
+            const reviewRows = visibleRows(rows).map((row) => ({
+              quote: row.review || row.quote || '',
+              author: row.reviewer || row.author || '',
+              stars: Number(row.stars || 5),
+            })).filter((review) => review.quote && review.author);
 
-        const byCategory = (category) => shoppingRows.filter((item) => String(item.category).toLowerCase() === category);
+            applyIfMounted(setExternalReviews, reviewRows);
+          })
+          .catch((error) => handleLoadError(
+            'Reviews',
+            error,
+            () => applyIfMounted(setExternalReviews, []),
+            isInitialLoad,
+          )),
 
-        applyIfMounted(setExternalWineItems, byCategory('wine'));
-        applyIfMounted(setExternalCheeseItems, byCategory('cheese'));
-        applyIfMounted(setExternalSwagItems, byCategory('swag'));
-      })
-      .catch(() => {
-        applyIfMounted(setExternalWineItems, []);
-        applyIfMounted(setExternalCheeseItems, []);
-        applyIfMounted(setExternalSwagItems, []);
-      });
+        loadTable(TABLES.Shopping, options)
+          .then((rows) => {
+            const shoppingRows = visibleRows(rows).map((row) => ({
+              category: row.category || '',
+              name: row.item || row.name || '',
+              price: row.price || '',
+              photo: tableMediaUrl(row),
+            })).filter((item) => item.category && item.name && item.price);
 
-    setHeroVideoFailed(false);
+            const byCategory = (category) => shoppingRows.filter(
+              (item) => String(item.category).toLowerCase() === category,
+            );
+
+            applyIfMounted(setExternalWineItems, byCategory('wine'));
+            applyIfMounted(setExternalCheeseItems, byCategory('cheese'));
+            applyIfMounted(setExternalSwagItems, byCategory('swag'));
+          })
+          .catch((error) => handleLoadError(
+            'Shopping',
+            error,
+            () => {
+              applyIfMounted(setExternalWineItems, []);
+              applyIfMounted(setExternalCheeseItems, []);
+              applyIfMounted(setExternalSwagItems, []);
+            },
+            isInitialLoad,
+          )),
+      ];
+
+      await Promise.all(tableLoads);
+    };
+
+    loadAllTables({ isInitialLoad: true });
+
+    const refreshInterval = window.setInterval(() => {
+      loadAllTables({ force: true });
+    }, 5 * 60 * 1000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(refreshInterval);
     };
   }, []);
 
