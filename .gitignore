@@ -21,3 +21,4 @@ npm-debug.log*
 
 # Editor settings (optional)
 .vscode/
+src/App-old.jsx
