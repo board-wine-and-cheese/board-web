@@ -285,10 +285,12 @@ function parseFaqCsv(csvText) {
 function parseFeaturedEventsCsv(csvText) {
   return parsePipeDelimitedRows(csvText, (values) => ({
     title: values[0] || '',
-    date: values[1] || '',
-    time: values[2] || '',
-    description: values[3] || '',
-  })).filter((event) => event.title && event.date);
+    startDate: values[1] || '',
+    endDate: values[2] || '',
+    repeat: String(values[3] || '').toLowerCase(),
+    time: values[4] || '',
+    description: values[5] || '',
+  })).filter((event) => event.title && event.startDate);
 }
 
 function parseMenuCsv(csvText) {
@@ -302,6 +304,14 @@ function parseMenuCsv(csvText) {
 }
 
 function parseEventDate(dateText) {
+  const raw = String(dateText || '').trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  // Google Sheets currently publishes FeaturedEvents dates as values such as
+  // "September 2". Keep those in the current year, matching the old behavior.
   const monthNames = [
     'january',
     'february',
@@ -317,23 +327,148 @@ function parseEventDate(dateText) {
     'december',
   ];
 
-  const lower = String(dateText || '').toLowerCase();
+  const lower = raw.toLowerCase();
   const monthIndex = monthNames.findIndex((month) => lower.includes(month));
   const dayMatch = lower.match(/[0-9]{1,2}/);
 
-  if (monthIndex < 0 || !dayMatch) {
-    return null;
+  if (monthIndex >= 0 && dayMatch) {
+    const yearMatch = lower.match(/\b(20[0-9]{2})\b/);
+    const year = yearMatch ? Number(yearMatch[1]) : new Date().getFullYear();
+    const day = Number(dayMatch[0]);
+    const parsedDate = new Date(year, monthIndex, day);
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
   }
 
-  const currentYear = new Date().getFullYear();
-  const day = Number(dayMatch[0]);
-  const parsedDate = new Date(currentYear, monthIndex, day);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
+  // Also accept ISO / numeric dates if the sheet format changes later.
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
   }
 
-  return parsedDate;
+  return null;
+}
+
+function formatEventDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function addMonthsClamped(date, monthCount = 1) {
+  const originalDay = date.getDate();
+  const targetMonthFirst = new Date(date.getFullYear(), date.getMonth() + monthCount, 1);
+  const daysInTargetMonth = new Date(
+    targetMonthFirst.getFullYear(),
+    targetMonthFirst.getMonth() + 1,
+    0
+  ).getDate();
+
+  return new Date(
+    targetMonthFirst.getFullYear(),
+    targetMonthFirst.getMonth(),
+    Math.min(originalDay, daysInTargetMonth)
+  );
+}
+
+function expandRecurringFeaturedEvents(events) {
+  const validRepeats = new Set(['daily', 'weekly', 'monthly']);
+
+  return events.flatMap((event) => {
+    const start = parseEventDate(event.startDate || event.date);
+    if (!start) {
+      return [];
+    }
+
+    const repeat = String(event.repeat || '').trim().toLowerCase();
+    const end = parseEventDate(event.endDate);
+
+    // Blank repeat/endDate is the normal one-off case.
+    if (!validRepeats.has(repeat) || !end || end < start) {
+      return [{
+        ...event,
+        date: formatEventDate(start),
+        calendarDate: start,
+        occurrenceKey: `${event.title}|${start.toISOString().slice(0, 10)}`,
+      }];
+    }
+
+    const occurrences = [];
+    let occurrenceDate = new Date(start);
+    let safetyCount = 0;
+
+    while (occurrenceDate <= end && safetyCount < 400) {
+      occurrences.push({
+        ...event,
+        date: formatEventDate(occurrenceDate),
+        calendarDate: new Date(occurrenceDate),
+        occurrenceKey: `${event.title}|${occurrenceDate.toISOString().slice(0, 10)}`,
+      });
+
+      if (repeat === 'daily') {
+        occurrenceDate = new Date(
+          occurrenceDate.getFullYear(),
+          occurrenceDate.getMonth(),
+          occurrenceDate.getDate() + 1
+        );
+      } else if (repeat === 'weekly') {
+        occurrenceDate = new Date(
+          occurrenceDate.getFullYear(),
+          occurrenceDate.getMonth(),
+          occurrenceDate.getDate() + 7
+        );
+      } else {
+        occurrenceDate = addMonthsClamped(occurrenceDate, 1);
+      }
+
+      safetyCount += 1;
+    }
+
+    return occurrences;
+  });
+}
+
+function featuredEventScheduleText(event) {
+  const repeat = String(event.repeat || '').trim().toLowerCase();
+  const repeatLabels = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+  };
+
+  const parts = [event.startDate || event.date];
+
+  if (event.time) {
+    parts.push(event.time);
+  }
+
+  if (repeatLabels[repeat] && event.endDate) {
+    parts.push(`${repeatLabels[repeat]} through ${event.endDate}`);
+  }
+
+  return parts.filter(Boolean).join(' • ');
+}
+
+function featuredOccurrenceScheduleText(event) {
+  const repeat = String(event.repeat || '').trim().toLowerCase();
+  const repeatLabels = {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+  };
+
+  return [
+    event.date || event.startDate,
+    event.time,
+    repeatLabels[repeat] || '',
+  ].filter(Boolean).join(' • ');
 }
 
 function buildCalendarMonths(events, monthCount = 3) {
@@ -354,7 +489,7 @@ function buildCalendarMonths(events, monthCount = 3) {
 
     for (let day = 1; day <= daysInMonth; day += 1) {
       const dayEvents = events.filter((event) => {
-        const eventDate = parseEventDate(event.date);
+        const eventDate = event.calendarDate || parseEventDate(event.date || event.startDate);
         return eventDate && eventDate.getFullYear() === year && eventDate.getMonth() === month && eventDate.getDate() === day;
       });
 
@@ -374,7 +509,7 @@ const parserTests = [
   { name: 'events parser', result: parseEventsCsv('Band One | June 6 | https://example.com').length, expected: 1 },
   { name: 'reviews parser', result: parseReviewsCsv('Great place | Sarah M.').length, expected: 1 },
   { name: 'hours parser', result: parseHoursCsv('Tue-Fri | 4PM-10PM').length, expected: 1 },
-  { name: 'featured events parser', result: parseFeaturedEventsCsv('Event | June 4 | 5PM | Description').length, expected: 1 },
+  { name: 'featured events parser', result: parseFeaturedEventsCsv('Event | June 4 | June 25 | weekly | 5PM | Description').length, expected: 1 },
 ];
 
 parserTests.forEach((test) => {
@@ -756,10 +891,10 @@ export default function App() {
   const musicEvents = externalMusicEvents.length ? externalMusicEvents : fallbackMusicEvents;
 
   const fallbackFeaturedEvents = [
-    { title: 'Fathers Day Wine Pairings', date: 'June 16', time: '6PM', description: 'Seasonal wine pairings curated for Father’s Day gatherings and celebrations.' },
-    { title: 'National Cheese Day Celebration', date: 'June 4', time: '5PM', description: 'Featured regional cheeses, pairings, and special tasting boards all evening.' },
-    { title: 'National Prosecco Day', date: 'August 13', time: '7PM', description: 'Sparkling flights, seasonal bites, and prosecco-focused specials.' },
-    { title: 'Rose All Day Weekend', date: 'July 20', time: '12PM', description: 'Summer rosé features, charcuterie pairings, and patio specials.' },
+    { title: 'Fathers Day Wine Pairings', startDate: 'June 16', endDate: '', repeat: '', time: '6PM', description: 'Seasonal wine pairings curated for Father’s Day gatherings and celebrations.' },
+    { title: 'Wine Wednesday', startDate: 'September 2', endDate: 'December 16', repeat: 'weekly', time: '5-7PM', description: 'Free wine tasting every Wednesday.' },
+    { title: 'National Prosecco Day', startDate: 'August 13', endDate: '', repeat: '', time: '7PM', description: 'Sparkling flights, seasonal bites, and prosecco-focused specials.' },
+    { title: 'Rose All Day Weekend', startDate: 'July 20', endDate: '', repeat: '', time: '12PM', description: 'Summer rosé features, charcuterie pairings, and patio specials.' },
   ];
 
   const featuredEvents = externalFeaturedEvents.length ? externalFeaturedEvents : fallbackFeaturedEvents;
@@ -805,12 +940,32 @@ export default function App() {
 
   const faqItems = externalFaqItems.length ? externalFaqItems : fallbackFaqItems;
 
+  const recurringFeaturedCalendarEvents = useMemo(
+    () => expandRecurringFeaturedEvents(featuredEvents),
+    [featuredEvents]
+  );
+
+  const featuredEventCards = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const upcoming = recurringFeaturedCalendarEvents
+      .filter((event) => event.calendarDate && event.calendarDate >= today)
+      .sort((a, b) => a.calendarDate - b.calendarDate);
+
+    // Keep the homepage useful without allowing a long-running weekly event
+    // to turn this section into an endless list. Six cards = up to three rows
+    // in the existing two-column desktop layout.
+    return (upcoming.length ? upcoming : recurringFeaturedCalendarEvents)
+      .slice(0, 6);
+  }, [recurringFeaturedCalendarEvents]);
+
   const calendarEvents = useMemo(
     () => [
       ...musicEvents.map((event) => ({ ...event, type: 'Music' })),
-      ...featuredEvents.map((event) => ({ ...event, type: 'Featured' })),
+      ...recurringFeaturedCalendarEvents.map((event) => ({ ...event, type: 'Featured' })),
     ],
-    [musicEvents, featuredEvents]
+    [musicEvents, recurringFeaturedCalendarEvents]
   );
 
   const calendarMonths = useMemo(
@@ -1008,10 +1163,16 @@ export default function App() {
           .then((rows) => {
             const featuredRows = visibleRows(rows).map((row) => ({
               title: row.title || '',
-              date: row.date || '',
+              category: row.category || '',
+              startDate: row.startDate || row.date || '',
+              endDate: row.endDate || '',
+              repeat: String(row.repeat || '').trim().toLowerCase(),
               time: row.time || '',
               description: row.subtitle || row.subTitle || row.description || '',
-            })).filter((event) => event.title && event.date);
+              sortOrder: Number(row.sortOrder || 999),
+            }))
+              .filter((event) => event.title && event.startDate)
+              .sort((a, b) => a.sortOrder - b.sortOrder);
 
             applyIfMounted(setExternalFeaturedEvents, featuredRows);
           })
@@ -1578,11 +1739,11 @@ export default function App() {
           <div className="mb-16">
             <p className="uppercase tracking-[0.3em] text-sm text-stone-400 mb-4">Featured Seasonal Events</p>
             <div className="grid md:grid-cols-2 gap-6">
-              {featuredEvents.map((event) => (
-                <article key={event.title} className="bg-stone-800 border border-stone-700 rounded-2xl p-6">
+              {featuredEventCards.map((event) => (
+                <article key={event.occurrenceKey || `${event.title}|${event.date}`} className="bg-stone-800 border border-stone-700 rounded-2xl p-6">
                   <h3 className="text-xl font-serif text-white mb-2">{event.title}</h3>
                   <p className="text-stone-400 text-sm mb-3">
-                    {event.date}{event.time ? ' • ' + event.time : ''}
+                    {featuredOccurrenceScheduleText(event)}
                   </p>
                   {event.description && (
                     <p className="text-stone-300 leading-relaxed text-sm">
@@ -1664,7 +1825,7 @@ export default function App() {
                             <div className="space-y-2">
                               {day.events.map((event) => (
                                 <a
-                                  key={event.title + event.date}
+                                  key={event.occurrenceKey || event.title + event.date}
                                   href={event.url && event.url !== '#' ? event.url : undefined}
                                   target={event.url && event.url !== '#' ? '_blank' : undefined}
                                   rel={event.url && event.url !== '#' ? 'noopener noreferrer' : undefined}
