@@ -683,6 +683,8 @@ export default function App() {
   const [externalWineItems, setExternalWineItems] = useState([]);
   const [externalCheeseItems, setExternalCheeseItems] = useState([]);
   const [externalSwagItems, setExternalSwagItems] = useState([]);
+  const [externalShoppingItems, setExternalShoppingItems] = useState([]);
+  const [externalShopCategories, setExternalShopCategories] = useState(null);
   const [selectedShopItems, setSelectedShopItems] = useState([]);
   const [externalBusinessHours, setExternalBusinessHours] = useState([]);
   const [externalHappyHourHours, setExternalHappyHourHours] = useState([]);
@@ -693,9 +695,12 @@ export default function App() {
   const [externalHomeRows, setExternalHomeRows] = useState([]);
   const [externalFullMenuRows, setExternalFullMenuRows] = useState([]);
   const [reviewScrollPaused, setReviewScrollPaused] = useState(false);
+  const [shopScrollPaused, setShopScrollPaused] = useState(false);
   const [expandedMenuCategories, setExpandedMenuCategories] = useState({});
   const [activeMenuItem, setActiveMenuItem] = useState(null);
   const reviewSliderRef = useRef(null);
+  const shopSliderRef = useRef(null);
+  const shopScrollResumeTimerRef = useRef(null);
 
 
   const HERO_VIDEO_URL = 'https://res.cloudinary.com/boardwineandcheese/video/upload/v1783267164/hero/board-hero.mp4';
@@ -953,11 +958,43 @@ export default function App() {
       .filter((event) => event.calendarDate && event.calendarDate >= today)
       .sort((a, b) => a.calendarDate - b.calendarDate);
 
-    // Keep the homepage useful without allowing a long-running weekly event
-    // to turn this section into an endless list. Six cards = up to three rows
-    // in the existing two-column desktop layout.
-    return (upcoming.length ? upcoming : recurringFeaturedCalendarEvents)
-      .slice(0, 6);
+    const eventsToShow = upcoming.length
+      ? upcoming
+      : [...recurringFeaturedCalendarEvents].sort(
+          (a, b) => a.calendarDate - b.calendarDate
+        );
+
+    // The calendar needs every generated occurrence, but the homepage should
+    // show a recurring series only once. Because the events are date-sorted,
+    // this keeps the first upcoming occurrence for each recurring CSV row.
+    const recurringSeriesShown = new Set();
+    const uniqueHomepageEvents = eventsToShow.filter((event) => {
+      const repeat = String(event.repeat || '').trim().toLowerCase();
+      const isRecurring = ['daily', 'weekly', 'monthly'].includes(repeat)
+        && Boolean(event.endDate);
+
+      if (!isRecurring) {
+        return true;
+      }
+
+      const seriesKey = [
+        event.title,
+        event.startDate,
+        event.endDate,
+        repeat,
+        event.time,
+      ].join('|');
+
+      if (recurringSeriesShown.has(seriesKey)) {
+        return false;
+      }
+
+      recurringSeriesShown.add(seriesKey);
+      return true;
+    });
+
+    // Six cards = up to three rows in the existing two-column desktop layout.
+    return uniqueHomepageEvents.slice(0, 6);
   }, [recurringFeaturedCalendarEvents]);
 
   const calendarEvents = useMemo(
@@ -979,11 +1016,16 @@ export default function App() {
     LOCAL_IMAGES.happyHourBeer,
   ]).map((src, index) => ({ src, alt: `Happy Hour ${index + 1}` }));
 
-  const shopItems = [
+  const fallbackShopItems = [
     { category: 'wine', title: 'Wine by the Bottle', description: 'Take home a rotating selection of thoughtfully chosen bottles from the Board wine program.', image: LOCAL_IMAGES.wineBottle, action: 'Browse Bottles' },
-    { category: 'cheese', title: 'Cheese & Pantry', description: 'Bring home featured cheeses, pairing essentials, and seasonal favorites for your own board.', image: LOCAL_IMAGES.cheeseDisplay, action: 'Shop Cheese' },
-    { category: 'swag', title: 'Board Swag', description: 'Tote bags, t-shirts, hats, and other Board goods are coming soon.', image: LOCAL_IMAGES.swagDisplay, action: 'Browse Swag' },
+    { category: 'cheese', title: 'Cheese Platters', description: 'Bring home featured cheese boards - pairing essentials.', image: 'https://res.cloudinary.com/boardwineandcheese/image/upload/v1785808306/food/house-boards/house-boards-5.webp', action: 'Shop Cheese' },
+    { category: 'swag', title: 'Board SWAG', description: 'Tote bags, t-shirts, hats, and other Board goods are available now.', image: LOCAL_IMAGES.swagDisplay, action: 'Shop SWAG' },
+    { category: 'pizza', title: 'Pizza', description: 'Take home a house-speciality - a delicious, wood-fired pizza.', image: 'https://upload.wikimedia.org/wikipedia/commons/9/9f/Closeup_of_a_pepperoni_pizza.jpg', action: 'Shop Pizza' },
   ];
+
+  const shopItems = externalShopCategories === null
+    ? fallbackShopItems
+    : externalShopCategories;
 
   const fallbackWineItems = [
     { name: 'House Red Selection', price: '$24', photo: LOCAL_IMAGES.wineBottle },
@@ -1003,13 +1045,55 @@ export default function App() {
     { name: 'Board Hat', photo: 'https://images.unsplash.com/photo-1521369909029-2afed882baee?q=80&w=800&auto=format&fit=crop', price: '$26' },
   ];
 
-  const shopData = useMemo(() => ({
-    wine: externalWineItems.length ? externalWineItems : fallbackWineItems,
-    cheese: externalCheeseItems.length ? externalCheeseItems : fallbackCheeseItems,
-    swag: externalSwagItems.length ? externalSwagItems : fallbackSwagItems,
-  }), [externalWineItems, externalCheeseItems, externalSwagItems]);
+  const shopData = useMemo(() => {
+    const groupedItems = externalShoppingItems.reduce((groups, item) => {
+      const category = String(item.category || '').trim().toLowerCase();
+      if (!category) return groups;
+      if (!groups[category]) groups[category] = [];
+      groups[category].push(item);
+      return groups;
+    }, {});
 
-  const activeShopTitle = activeShopCategory === 'wine' ? 'Wine by the Bottle' : activeShopCategory === 'cheese' ? 'Cheese & Pantry' : 'Board Swag';
+    return groupedItems;
+  }, [externalShoppingItems]);
+
+  const activeShopTitle = shopItems.find(
+    (item) => item.category === activeShopCategory
+  )?.title || activeShopCategory;
+  const isPickupItem = (item) => String(item.availabilityText || '').trim().toLowerCase() === 'order for pickup';
+  const activeShopHasPickupItems = (shopData[activeShopCategory] || []).some(isPickupItem);
+
+  const scrollShopCategories = (direction) => {
+    const slider = shopSliderRef.current;
+    if (!slider) return;
+
+    setShopScrollPaused(true);
+    window.clearTimeout(shopScrollResumeTimerRef.current);
+
+    const maxScrollLeft = slider.scrollWidth - slider.clientWidth;
+    const pageDistance = Math.max(320, slider.clientWidth * 0.9);
+    let nextScrollLeft;
+
+    if (direction < 0) {
+      nextScrollLeft = slider.scrollLeft <= 1
+        ? maxScrollLeft
+        : Math.max(0, slider.scrollLeft - pageDistance);
+    } else {
+      nextScrollLeft = slider.scrollLeft >= maxScrollLeft - 1
+        ? 0
+        : Math.min(maxScrollLeft, slider.scrollLeft + pageDistance);
+    }
+
+    slider.scrollTo({ left: nextScrollLeft, behavior: 'smooth' });
+    shopScrollResumeTimerRef.current = window.setTimeout(
+      () => setShopScrollPaused(false),
+      1200
+    );
+  };
+
+  useEffect(() => () => {
+    window.clearTimeout(shopScrollResumeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1054,6 +1138,41 @@ export default function App() {
 
     return () => window.cancelAnimationFrame(animationFrameId);
   }, [reviewScrollPaused, reviews.length]);
+
+  useEffect(() => {
+    const shopSlider = shopSliderRef.current;
+
+    if (!shopSlider || shopItems.length <= 3 || shopScrollPaused) {
+      return undefined;
+    }
+
+    let animationFrameId;
+    let lastTimestamp = null;
+    const pixelsPerSecond = 28;
+
+    const step = (timestamp) => {
+      if (lastTimestamp === null) {
+        lastTimestamp = timestamp;
+      }
+
+      const elapsedSeconds = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+      const maxScrollLeft = shopSlider.scrollWidth - shopSlider.clientWidth;
+
+      if (maxScrollLeft > 0) {
+        if (shopSlider.scrollLeft >= maxScrollLeft - 1) {
+          shopSlider.scrollLeft = 0;
+        } else {
+          shopSlider.scrollLeft += pixelsPerSecond * elapsedSeconds;
+        }
+      }
+
+      animationFrameId = window.requestAnimationFrame(step);
+    };
+
+    animationFrameId = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [shopItems.length, shopScrollPaused]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1245,22 +1364,65 @@ export default function App() {
             isInitialLoad,
           )),
 
+        loadTable(TABLES.ShoppingCategories, options)
+          .then((rows) => {
+            const fallbackDescriptions = {
+              wine: 'Take home a rotating selection of thoughtfully chosen bottles from the Board wine program.',
+              cheese: 'Bring home featured cheeses, pairing essentials, and seasonal favorites for your own board.',
+              swag: 'Tote bags, t-shirts, hats, and other Board goods are coming soon.',
+            };
+
+            const visibleCategoryRows = rows.filter(
+              (row) => String(row.visible || '').trim().toLowerCase() === 'true'
+            );
+
+            const categoryRows = visibleCategoryRows.map((row) => {
+              const category = String(row.category || '').trim().toLowerCase();
+              return {
+                category,
+                title: row.heading || row.title || '',
+                action: row.buttonText || row.action || '',
+                description: row.subtitle || row.description || fallbackDescriptions[category] || '',
+                image: tableMediaUrl(row),
+                sortOrder: Number(row.sortOrder || 999),
+              };
+            }).filter((item) => item.category && item.title && item.action && item.image)
+              .sort((a, b) => a.sortOrder - b.sortOrder);
+
+            // An empty array is intentional when every published row is hidden.
+            applyIfMounted(setExternalShopCategories, categoryRows);
+          })
+          .catch((error) => handleLoadError(
+            'ShoppingCategories',
+            error,
+            () => applyIfMounted(setExternalShopCategories, null),
+            isInitialLoad,
+          )),
+
         loadTable(TABLES.Shopping, options)
           .then((rows) => {
-            const shoppingRows = visibleRows(rows).map((row) => ({
-              category: row.category || '',
+            const visibleShoppingRows = rows.filter(
+              (row) => String(row.visible || '').trim().toLowerCase() === 'true'
+            );
+
+            const shoppingRows = visibleShoppingRows.map((row) => ({
+              category: String(row.category || '').trim().toLowerCase(),
               name: row.item || row.name || '',
               price: row.price || '',
+              availabilityText: row.availabilityText || '',
               photo: tableMediaUrl(row),
-            })).filter((item) => item.category && item.name && item.price);
+              sortOrder: Number(row.sortOrder || 999),
+            })).filter((item) => item.category && item.name && item.price)
+              .sort((a, b) => a.sortOrder - b.sortOrder);
 
             const byCategory = (category) => shoppingRows.filter(
-              (item) => String(item.category).toLowerCase() === category,
+              (item) => item.category === category,
             );
 
             applyIfMounted(setExternalWineItems, byCategory('wine'));
             applyIfMounted(setExternalCheeseItems, byCategory('cheese'));
             applyIfMounted(setExternalSwagItems, byCategory('swag'));
+            applyIfMounted(setExternalShoppingItems, shoppingRows);
           })
           .catch((error) => handleLoadError(
             'Shopping',
@@ -1269,6 +1431,9 @@ export default function App() {
               applyIfMounted(setExternalWineItems, []);
               applyIfMounted(setExternalCheeseItems, []);
               applyIfMounted(setExternalSwagItems, []);
+              // Never substitute sample products when the published sheet is
+              // unavailable. An empty dialog is more accurate than stale data.
+              applyIfMounted(setExternalShoppingItems, []);
             },
             isInitialLoad,
           )),
@@ -1306,8 +1471,7 @@ export default function App() {
   };
 
   const getPurchaseUrl = () => {
-    const items = selectedShopItems.map((item) => ({ category: item.category, name: item.name, price: item.price }));
-    return externalPurchaseBaseUrl + '?items=' + encodeURIComponent(JSON.stringify(items));
+    return orderOnlineUrl;
   };
 
   return (
@@ -1892,6 +2056,7 @@ export default function App() {
         </div>
       </section>
 
+      {shopItems.length > 0 && (
       <section id="shop" aria-labelledby="shop-heading" className="bg-white py-24 border-y border-stone-200">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -1899,9 +2064,38 @@ export default function App() {
             <h2 id="shop-heading" className="text-4xl md:text-5xl font-serif mb-6 leading-tight">Take a piece of Board home.</h2>
             <p className="text-lg text-stone-600 leading-relaxed max-w-3xl mx-auto">In addition to dining in, Board offers select wines by the bottle, cheese to take home, and eventually a small collection of branded goods and gifts.</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          {shopItems.length > 3 && (
+            <div className="flex justify-end gap-3 mb-6">
+              <button
+                type="button"
+                onClick={() => scrollShopCategories(-1)}
+                className="h-11 w-11 inline-flex items-center justify-center rounded-full border border-stone-400 hover:bg-stone-100 transition-colors"
+                aria-label="Scroll shopping categories left"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollShopCategories(1)}
+                className="h-11 w-11 inline-flex items-center justify-center rounded-full border border-stone-400 hover:bg-stone-100 transition-colors"
+                aria-label="Scroll shopping categories right"
+              >
+                →
+              </button>
+            </div>
+          )}
+          <div
+            ref={shopItems.length > 3 ? shopSliderRef : null}
+            className={shopItems.length > 3
+              ? 'flex gap-8 overflow-x-auto scroll-smooth pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden'
+              : 'grid md:grid-cols-3 gap-8'}
+            onMouseEnter={() => setShopScrollPaused(true)}
+            onMouseLeave={() => setShopScrollPaused(false)}
+            onTouchStart={() => setShopScrollPaused(true)}
+            onTouchEnd={() => setShopScrollPaused(false)}
+          >
             {shopItems.map((item) => (
-              <div key={item.title} className="bg-stone-50 border border-stone-200 rounded-3xl overflow-hidden shadow-sm">
+              <div key={item.category} className={`bg-stone-50 border border-stone-200 rounded-3xl overflow-hidden shadow-sm ${shopItems.length > 3 ? 'min-w-[85%] md:min-w-[calc((100%-4rem)/3)]' : ''}`}>
                 <CloudImage src={item.image} alt={item.title} className="h-64 w-full object-cover" />
                 <div className="p-8">
                   <h4 className="text-2xl font-serif mb-4">{item.title}</h4>
@@ -1915,6 +2109,7 @@ export default function App() {
           </div>
         </div>
       </section>
+      )}
 
       {activeShopCategory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-6" onClick={() => setActiveShopCategory(null)}>
@@ -1929,15 +2124,17 @@ export default function App() {
 
             <div className="space-y-4">
               {(shopData[activeShopCategory] || []).map((item) => (
-                <div key={item.name} className={`flex items-center justify-between gap-5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm transition-colors ${activeShopCategory === 'swag' ? 'cursor-pointer hover:border-stone-400' : ''}`}>
+                <div key={item.name} className={`flex items-center justify-between gap-5 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm transition-colors ${isPickupItem(item) ? 'cursor-pointer hover:border-stone-400' : ''}`}>
                   <div className="flex items-center gap-4">
-                    {activeShopCategory === 'swag' && (
+                    {isPickupItem(item) && (
                       <input type="checkbox" checked={isShopItemSelected(item)} onChange={() => toggleShopItem(item)} className="h-5 w-5 rounded border-stone-300" />
                     )}
                     {item.photo && <CloudImage src={item.photo} alt={item.name} className="h-20 w-20 rounded-2xl object-cover" />}
                     <div>
                       <h4 className="text-xl font-serif">{item.name}</h4>
-                      <p className="text-sm text-stone-500">{activeShopCategory === 'wine' ? 'Available in store only' : activeShopCategory === 'cheese' ? 'Available in store only' : 'Board merchandise'}</p>
+                      {item.availabilityText && (
+                        <p className="text-sm text-stone-500">{item.availabilityText}</p>
+                      )}
                     </div>
                   </div>
                   <p className="text-lg font-medium whitespace-nowrap">{item.price}</p>
@@ -1947,7 +2144,7 @@ export default function App() {
 
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-end border-t border-stone-200 pt-6">
               <button type="button" onClick={() => setActiveShopCategory(null)} className="border border-stone-300 px-8 py-4 rounded-full hover:bg-white transition-colors">Close</button>
-              {activeShopCategory === 'swag' && (
+              {activeShopHasPickupItems && (
                 <a href={selectedShopItems.length ? getPurchaseUrl() : '#'} target={selectedShopItems.length ? '_blank' : undefined} rel={selectedShopItems.length ? 'noopener noreferrer' : undefined} onClick={(event) => { if (!selectedShopItems.length) event.preventDefault(); }} className={`px-8 py-4 rounded-full transition-colors text-center ${selectedShopItems.length ? 'bg-stone-900 text-white hover:bg-stone-700' : 'bg-stone-300 text-stone-500 cursor-not-allowed'}`}>
                   Buy {selectedShopItems.length ? '(' + selectedShopItems.length + ')' : ''}
                 </a>
