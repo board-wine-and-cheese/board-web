@@ -1,37 +1,33 @@
-# Board Web Cleanup Report
+# Cleanup and SEO report
 
-## Removed from cleaned ZIP
+## Removed
 
-- .netlify/ local Netlify state/cache and embedded local database files
-- .env containing local/private environment values
-- all .DS_Store and __MACOSX metadata
-- deno.lock, which is not used by this Vite/Netlify project
-- netlify/functions/chownow-proxy.js stub
-- netlify/functions/wineview-proxy.js stub
-- legacy CSV parser functions and parser test block in App.jsx
-- stale old resOS test/comment block in App.jsx
+- All sample menu, event, review, FAQ, hours, venue, shopping, hero, happy-hour, catering, and private-event fallback content.
+- Row-level substitute images and shopping descriptions.
+- Legacy pipe-delimited parsers and their runtime parser tests; the site uses the shared Google Sheets CSV parser.
+- The unused embedded resOS widget implementation; reservations continue to use the current resOS booking link and modal.
+- Unused shopping-category state and configuration.
+- Local Netlify cache/build artifacts, Finder metadata, duplicate/stale notes, an unused diagram, the obsolete Deno lockfile, and the unused local menu PDF.
 
-## Kept
+## Data behavior
 
-- src/App.jsx with Google Sheets + Cloudinary integration
-- src/config.js with the nine Google Sheets table URLs
-- src/lib/googleSheets.js generic CSV table loader
-- netlify/functions/send-inquiry.js Resend email function
-- public/sitemap.xml and public/robots.txt
-- public/icons/favicon.svg and public/icons/icons.svg; index.html now points to /icons/favicon.svg
-- public/pdf/current-menu.pdf as temporary PDF fallback while Cloudinary PDF delivery is unresolved
+- CSV-backed content starts empty, so placeholder material cannot flash before Google Sheets loads.
+- A successful empty or fully hidden sheet stays empty/hidden.
+- A failed sheet is reported in the site-wide availability notice instead of being replaced by plausible content.
+- Existing five-minute refresh behavior remains in place. Successful refreshes replace current data; refresh failures are reported without inventing content.
 
-## Important security note
+## SEO and performance
 
-- The uploaded ZIP contained a real Resend API key in `.env`. I removed `.env` from the cleaned ZIP and replaced `.env.example` with placeholders. You should revoke that exposed Resend key and create a new one in Resend/Netlify.
+- Added server-side prerendering of the homepage and a real 404 response page.
+- Added canonical, robots, Open Graph, Twitter, geographic, and expanded Restaurant/BarOrPub structured data.
+- Added verified Board Instagram and Facebook profile links.
+- Preserved `robots.txt` and `sitemap.xml` for the canonical domain.
+- Split the PDF viewer into a lazy-loaded bundle, reducing the main JavaScript bundle substantially.
+- Corrected the telephone link to match the displayed Board phone number.
+- Added client-rendered FAQPage structured data, a single-open `+` accordion, and automatic expansion of the first FAQ.
+- Restored a generic image only for LiveArtists rows whose `mediaURL` is blank.
+- Replaced the inactive Wine Club link with a non-clickable coming-soon label while retaining Gift Card purchasing.
 
-## Suggested next cleanup pass
+## Verification
 
-- Move App.jsx sections into smaller components after the data migration settles.
-- Resolve Cloudinary PDF public delivery or choose a separate PDF host.
-- Update social preview image paths in index.html if /images/social/share-image.jpg is no longer present.
-- Run npm run build locally before deploying.
-## Notes
-
-- `App.jsx` still contains local fallback paths for `/images/...` and `/videos/board-hero.mp4`. Because the live content is now coming from Google Sheets/Cloudinary, those are only fallbacks. If you want completely clean fallbacks, either add minimal placeholder files back into `public/` or replace those fallback constants with Cloudinary URLs.
-- `index.html` social preview image was updated to a Cloudinary URL because `/images/social/share-image.jpg` was no longer present.
+Run `npm install`, then `npm run build`. The build creates `dist/`, prerenders the homepage, and generates the 404 routing file for Netlify.

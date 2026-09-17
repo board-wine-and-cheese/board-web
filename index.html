@@ -8,30 +8,20 @@
 
     <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
     <link rel="dns-prefetch" href="https://res.cloudinary.com" />
-    <link
-      rel="preload"
-      as="image"
-      href="https://res.cloudinary.com/boardwineandcheese/image/upload/f_auto,q_auto/v1783279489/main/wines.jpg"
-      fetchpriority="high"
-    />
-    <link
-      rel="preload"
-      as="video"
-      href="https://res.cloudinary.com/boardwineandcheese/video/upload/f_auto,q_auto/v1783267164/hero/board-hero.mp4"
-      crossorigin
-    />
-
     <meta
       name="description"
       content="Board Wine & Cheese is a neighborhood wine bar in Kittery, Maine featuring curated wines, artisan charcuterie, live music, private events, catering, and wine flights."
     />
 
     <link rel="canonical" href="https://boardwineandcheese.com/" />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
 
     <meta name="theme-color" content="#1c1917" />
 
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Board Wine & Cheese" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:url" content="https://boardwineandcheese.com/" />
     <meta property="og:title" content="Board Wine & Cheese" />
     <meta
@@ -54,15 +44,21 @@
       content="https://res.cloudinary.com/boardwineandcheese/image/upload/f_auto,q_auto/v1783279619/main/wine-and-cheese.jpg"
     />
 
+    <meta name="geo.region" content="US-ME" />
+    <meta name="geo.placename" content="Kittery" />
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Restaurant",
+        "@type": ["Restaurant", "BarOrPub"],
+        "@id": "https://boardwineandcheese.com/#business",
         "name": "Board Wine & Cheese",
         "url": "https://boardwineandcheese.com/",
         "image": "https://res.cloudinary.com/boardwineandcheese/image/upload/f_auto,q_auto/v1783279619/main/wine-and-cheese.jpg",
         "telephone": "+1-207-436-0300",
         "priceRange": "$$",
+        "acceptsReservations": true,
+        "hasMap": "https://maps.google.com/?q=5+Shapleigh+Road+Kittery+ME+03904",
         "servesCuisine": ["Wine Bar", "Charcuterie", "Cheese"],
         "address": {
           "@type": "PostalAddress",
@@ -73,8 +69,8 @@
           "addressCountry": "US"
         },
         "sameAs": [
-          "https://www.instagram.com/",
-          "https://www.facebook.com/"
+          "https://www.instagram.com/boardwineandcheese/",
+          "https://www.facebook.com/Board.KitteryME/"
         ]
       }
     </script>
